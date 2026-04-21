@@ -28,8 +28,7 @@
     <q-separator />
 
     <q-card-section class="q-py-sm">
-      <div class="text-primary text-h5 q-mb-sm">{{ money(item.price) }}</div>
-      <q-btn unelevated color="accent" label="Add to Cart" flat />
+      <div class="text-primary text-h5">{{ money(item.price) }}</div>
     </q-card-section>
   </q-card>
 </template>

@@ -6,6 +6,10 @@
       </div>
       <div class="col-12 col-md-4">
         <RestaurantInfoCard :restaurant="restaurant" />
+        <q-card v-if="restaurant" flat class="q-mt-md q-pa-md">
+          <q-btn unelevated icon="delete" label="Delete Restaurant" color="negative" @click="deleteRestaurant"
+            class="full-width" />
+        </q-card>
       </div>
     </div>
   </q-page>
@@ -17,7 +21,7 @@ import { useRouter } from 'vue-router'
 import { useRestaurantStore } from 'src/stores/restaurantStore'
 import RestaurantForm from 'src/components/restaurant/RestaurantForm.vue'
 import RestaurantInfoCard from 'src/components/restaurant/RestaurantInfoCard.vue'
-import { Notify } from 'quasar'
+import { Notify, Dialog } from 'quasar'
 
 const router = useRouter()
 const restaurantStore = useRestaurantStore()
@@ -30,5 +34,20 @@ const handleSave = (data) => {
     color: 'positive'
   })
   router.push('/app/items')
+}
+
+const deleteRestaurant = () => {
+  Dialog.create({
+    title: 'Confirm Delete',
+    message: 'Delete this restaurant setup? This cannot be undone.',
+    cancel: true,
+    persistent: true
+  }).onOk(() => {
+    restaurantStore.deleteRestaurant()
+    Notify.create({
+      message: 'Restaurant deleted',
+      color: 'negative'
+    })
+  })
 }
 </script>

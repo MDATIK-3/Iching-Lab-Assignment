@@ -11,7 +11,7 @@ export const useOrderStore = defineStore('orders', () => {
   const openOrders = computed(() => orders.value.filter((o) => o.status === 'open'))
   const paidOrders = computed(() => orders.value.filter((o) => o.status === 'paid'))
 
-  const createOrder = ({ customerName = '', tableNumber = '', items = [] }) => {
+  const createOrder = ({ customerName, phoneNumber, tableNumber, seatNumber, items = [] }) => {
     const normalizedItems = items
       .filter((i) => i && i.qty > 0)
       .map((i) => ({
@@ -28,7 +28,9 @@ export const useOrderStore = defineStore('orders', () => {
       createdAt: new Date().toISOString(),
       status: 'open',
       customerName,
+      phoneNumber,
       tableNumber,
+      seatNumber,
       items: normalizedItems,
       total,
     }
@@ -64,4 +66,3 @@ export const useOrderStore = defineStore('orders', () => {
     removeOrder,
   }
 })
-

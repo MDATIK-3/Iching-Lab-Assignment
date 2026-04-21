@@ -15,7 +15,29 @@
         </template>
       </q-file>
 
-      <q-chips-input v-model="form.branches" label="Branches" placeholder="Add branch location" />
+      <!-- Branches Management -->
+      <div class="q-mb-md">
+        <div class="text-h6 q-mb-sm">Branches</div>
+        <q-input v-model="newBranch" label="New Branch Name" placeholder="Enter branch name" class="q-mb-md" />
+        <q-btn unelevated icon="add" label="Add Branch" color="positive" @click="addBranch" class="q-mr-sm" />
+
+        <div v-if="form.branches.length" class="q-mt-md">
+          <q-list bordered>
+            <q-item v-for="(branch, index) in form.branches" :key="index" class="q-py-sm">
+              <q-item-section>
+                <q-item-label>{{ branch }}</q-item-label>
+              </q-item-section>
+              <q-item-section side>
+                <q-btn dense flat icon="edit" color="primary" @click="editBranch(index)" class="q-mr-sm" />
+                <q-btn dense flat icon="delete" color="negative" @click="deleteBranch(index)" />
+              </q-item-section>
+            </q-item>
+          </q-list>
+        </div>
+        <div v-else class="text-grey q-mt-sm">
+          No branches added yet
+        </div>
+      </div>
 
       <q-btn unelevated type="submit" label="Save Setup" color="accent" class="q-mt-md" :loading="loading" />
     </q-form>
@@ -28,6 +50,8 @@ import { ref } from 'vue'
 const emit = defineEmits(['save'])
 const loading = ref(false)
 const logoFile = ref(null)
+const newBranch = ref('')
+const editingIndex = ref(-1)
 
 const form = ref({
   name: '',
@@ -45,6 +69,27 @@ const handleLogo = async (file) => {
     }
     reader.readAsDataURL(file)
   }
+}
+
+const addBranch = () => {
+  if (newBranch.value.trim()) {
+    if (editingIndex.value >= 0) {
+      form.value.branches[editingIndex.value] = newBranch.value.trim()
+      editingIndex.value = -1
+    } else {
+      form.value.branches.push(newBranch.value.trim())
+    }
+    newBranch.value = ''
+  }
+}
+
+const editBranch = (index) => {
+  newBranch.value = form.value.branches[index]
+  editingIndex.value = index
+}
+
+const deleteBranch = (index) => {
+  form.value.branches.splice(index, 1)
 }
 
 const onSubmit = () => {

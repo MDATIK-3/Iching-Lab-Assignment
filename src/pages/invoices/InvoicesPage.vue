@@ -3,7 +3,6 @@
     <div class="row items-center q-mb-md">
       <div>
         <div class="text-h4 q-mb-xs">Invoices</div>
-        <div class="text-subtitle1 text-grey-6">Paid orders history</div>
       </div>
       <q-space />
       <q-input v-model="search" outlined dense placeholder="Search invoices..." style="max-width: 320px" />
@@ -11,23 +10,28 @@
 
     <q-card>
       <q-list separator>
-        <q-item v-for="o in filtered" :key="o.id" clickable @click="selected = o">
+        <q-item v-for="o in filteredOrders" :key="o.id" clickable @click="selected = o">
           <q-item-section>
             <q-item-label class="text-weight-medium">
               {{ o.customerName || 'Walk-in' }}
-              <span v-if="o.tableNumber" class="text-grey-6">• Table {{ o.tableNumber }}</span>
+              <span v-if="o.phoneNumber"> • {{ o.phoneNumber }}</span>
+              <span v-if="o.tableNumber"> • Table {{ o.tableNumber }}</span>
+              <span v-if="o.seatNumber"> • Seat {{ o.seatNumber }}</span>
             </q-item-label>
             <q-item-label caption>
-              Paid: {{ new Date(o.paidAt || o.createdAt).toLocaleString() }} • {{ o.items.length }} item(s)
+              {{ o.status === 'open' ? 'Created' : 'Paid' }}: {{ formatDate(o) }} • {{ o.items.length }} item(s)
             </q-item-label>
           </q-item-section>
-          <q-item-section side class="text-weight-medium">
-            {{ money(o.total) }}
+          <q-item-section side>
+            <div class="q-gutter-xs">
+              <q-btn flat icon="visibility" label="View" size="sm" @click.stop="viewInvoice(o)" />
+              <q-btn flat icon="download" label="Download" size="sm" @click.stop="downloadPdf(o)" />
+              <q-btn flat icon="print" label="Print" size="sm" @click.stop="printInvoice(o)" />
+            </div>
           </q-item-section>
         </q-item>
-
-        <q-item v-if="filtered.length === 0">
-          <q-item-section class="text-grey-6">No invoices yet. Mark an order as paid in Orders.</q-item-section>
+        <q-item v-if="filteredOrders.length === 0">
+          <q-item-section class="text-grey-6">No orders yet.</q-item-section>
         </q-item>
       </q-list>
     </q-card>
@@ -35,33 +39,29 @@
     <q-dialog v-model="detailsOpen">
       <q-card style="min-width: 520px; max-width: 90vw">
         <q-card-section class="row items-center">
-          <div class="text-h6">Invoice Details</div>
+          <div class="text-h6">Invoice #{{ selected?.id }}</div>
           <q-space />
-          <q-btn
-            v-if="selected"
-            flat
-            icon="download"
-            label="PDF"
-            class="q-mr-sm"
-            @click="downloadPdf(selected)"
-          />
+          <q-btn flat icon="download" label="Download PDF" @click="downloadPdf(selected)" />
+          <q-btn flat icon="print" label="Print" @click="printInvoice(selected)" class="q-ml-sm" />
           <q-btn flat round icon="close" v-close-popup />
         </q-card-section>
         <q-separator />
-
         <q-card-section v-if="selected">
-          <div class="text-body2 text-grey-7 q-mb-sm">Invoice #{{ selected.id }}</div>
+          <div class="text-body2 text-grey-7 q-mb-sm">Order {{ selected.status === 'open' ? 'Draft' : 'Invoice' }} #{{
+            selected.id }}</div>
           <div class="q-mb-sm">
             <div class="text-subtitle2">Customer</div>
             <div>{{ selected.customerName || 'Walk-in' }}</div>
+            <span v-if="selected.phoneNumber" class="text-grey-6 block">{{ selected.phoneNumber }}</span>
           </div>
-          <div class="q-mb-sm" v-if="selected.tableNumber">
-            <div class="text-subtitle2">Table</div>
-            <div>{{ selected.tableNumber }}</div>
+          <div v-if="selected.tableNumber || selected.seatNumber" class="q-mb-sm">
+            <div class="text-subtitle2">Table Info</div>
+            <div v-if="selected.tableNumber">Table {{ selected.tableNumber }}</div>
+            <div v-if="selected.seatNumber">Seat {{ selected.seatNumber }}</div>
           </div>
           <div class="q-mb-md">
-            <div class="text-subtitle2">Paid at</div>
-            <div>{{ new Date(selected.paidAt || selected.createdAt).toLocaleString() }}</div>
+            <div class="text-subtitle2">{{ selected.status === 'open' ? 'Created' : 'Paid' }} at</div>
+            <div>{{ formatDate(selected) }}</div>
           </div>
 
           <q-list bordered separator class="q-mb-md">
@@ -104,15 +104,18 @@ watch(detailsOpen, (open) => {
   if (!open) selected.value = null
 })
 
-const filtered = computed(() => {
+const allOrders = computed(() => (orderStore.orders || []).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)))
+
+const filteredOrders = computed(() => {
   const q = search.value.trim().toLowerCase()
-  const list = orderStore.paidOrders || []
-  if (!q) return list
-  return list.filter((o) => {
+  if (!q) return allOrders.value
+  return allOrders.value.filter((o) => {
     return (
       o.id?.toLowerCase().includes(q) ||
       (o.customerName || '').toLowerCase().includes(q) ||
-      String(o.tableNumber || '').toLowerCase().includes(q)
+      String(o.phoneNumber || '').toLowerCase().includes(q) ||
+      String(o.tableNumber || '').toLowerCase().includes(q) ||
+      String(o.seatNumber || '').toLowerCase().includes(q)
     )
   })
 })
@@ -122,8 +125,11 @@ const money = (n) =>
     Number(n) || 0,
   )
 
-// jsPDF built-in fonts don't support Bengali/Unicode well.
-// Use an ASCII-safe format for PDFs to avoid garbled output.
+const formatDate = (o) => {
+  const date = o.status === 'open' ? o.createdAt : o.paidAt
+  return new Date(date).toLocaleString()
+}
+
 const moneyPdf = (n) => {
   const amount = Number(n) || 0
   const formatted = new Intl.NumberFormat('en-US', {
@@ -142,20 +148,24 @@ const downloadPdf = (invoice) => {
 
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(18)
-  doc.text('Invoice', margin, y)
+  doc.text(invoice.status === 'open' ? 'Order Draft' : 'Invoice', margin, y)
 
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(11)
   y += 22
-  doc.text(`Invoice #: ${invoice.id}`, margin, y)
+  doc.text(`Order #: ${invoice.id}`, margin, y)
   y += 16
   doc.text(`Customer: ${invoice.customerName || 'Walk-in'}`, margin, y)
   y += 16
-  if (invoice.tableNumber) {
-    doc.text(`Table: ${invoice.tableNumber}`, margin, y)
+  if (invoice.phoneNumber) {
+    doc.text(`Phone: ${invoice.phoneNumber}`, margin, y)
     y += 16
   }
-  doc.text(`Paid at: ${new Date(invoice.paidAt || invoice.createdAt).toLocaleString()}`, margin, y)
+  if (invoice.tableNumber || invoice.seatNumber) {
+    doc.text(`Table: ${invoice.tableNumber || ''} ${invoice.seatNumber ? 'Seat ' + invoice.seatNumber : ''}`.trim(), margin, y)
+    y += 16
+  }
+  doc.text(`${invoice.status === 'open' ? 'Created' : 'Paid'} at: ${formatDate(invoice)}`, margin, y)
 
   y += 22
   doc.setDrawColor(200)
@@ -199,7 +209,14 @@ const downloadPdf = (invoice) => {
   doc.text(moneyPdf(invoice.total), pageWidth - margin, y, { align: 'right' })
 
   const filenameSafeId = String(invoice.id || 'invoice').replace(/[^\w-]+/g, '_')
-  doc.save(`invoice_${filenameSafeId}.pdf`)
+  doc.save(`${invoice.status === 'open' ? 'draft_' : 'invoice_'}${filenameSafeId}.pdf`)
+}
+
+const printInvoice = (invoice) => {
+  window.print()
+}
+
+const viewInvoice = (invoice) => {
+  selected.value = invoice
 }
 </script>
-

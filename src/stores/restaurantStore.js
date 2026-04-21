@@ -23,9 +23,15 @@ export const useRestaurantStore = defineStore('restaurant', () => {
   // Clone to avoid mutating readonly proxies coming from storage composable
   restaurant.value = restaurantData.value ? structuredClone(restaurantData.value) : null
 
+  const deleteRestaurant = () => {
+    restaurant.value = null
+    update(null)
+  }
+
   return {
     restaurant,
     saveRestaurant,
+    deleteRestaurant,
     isSetupComplete,
   }
 })
