@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Restaurant POS — Architecture</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap');
+
+  :root {
+    --bg: #0a0e1a;
+    --surface: #111827;
+    --surface2: #1c2535;
+    --border: #2a3548;
+    --accent: #f97316;
+    --accent2: #38bdf8;
+    --accent3: #a78bfa;
+    --accent4: #34d399;
+    --accent5: #fb7185;
+    --text: #e2e8f0;
+    --muted: #64748b;
+    --mono: 'JetBrains Mono', monospace;
+    --sans: 'Syne', sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    padding: 32px 24px;
+  }
+
+  h1 {
+    font-size: clamp(1.4rem, 4vw, 2.2rem);
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    margin-bottom: 4px;
+  }
+
+  h1 span { color: var(--accent); }
+  .subtitle { color: var(--muted); font-size: 0.85rem; margin-bottom: 40px; font-family: var(--mono); }
+
+  /* Tab navigation */
+  .tabs { display: flex; gap: 8px; margin-bottom: 28px; flex-wrap: wrap; }
+  .tab {
+    padding: 8px 18px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--muted);
+    cursor: pointer;
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    transition: all 0.2s;
+  }
+  .tab.active { border-color: var(--accent); color: var(--accent); background: rgba(249,115,22,0.08); }
+  .tab:hover:not(.active) { border-color: var(--border); color: var(--text); }
+
+  /* Panel */
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  /* MVC Grid */
+  .mvc-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  @media (max-width: 700px) { .mvc-grid { grid-template-columns: 1fr; } }
+
+  .mvc-col {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .mvc-col-header {
+    padding: 14px 18px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .mvc-col-header .badge {
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-weight: 700;
+  }
+  .model-col .mvc-col-header { background: rgba(167,139,250,0.08); color: var(--accent3); }
+  .model-col .badge { background: rgba(167,139,250,0.15); color: var(--accent3); }
+  .controller-col .mvc-col-header { background: rgba(249,115,22,0.08); color: var(--accent); }
+  .controller-col .badge { background: rgba(249,115,22,0.15); color: var(--accent); }
+  .view-col .mvc-col-header { background: rgba(56,189,248,0.08); color: var(--accent2); }
+  .view-col .badge { background: rgba(56,189,248,0.15); color: var(--accent2); }
+
+  .mvc-items { padding: 12px; display: flex; flex-direction: column; gap: 6px; }
+  .mvc-item {
+    background: var(--surface2);
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    line-height: 1.5;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .mvc-item:hover { border-color: var(--border); }
+  .mvc-item .file { color: var(--text); font-weight: 700; }
+  .mvc-item .desc { color: var(--muted); font-size: 0.68rem; margin-top: 2px; }
+
+  /* File Tree */
+  .tree {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px 24px;
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    line-height: 2;
+    overflow-x: auto;
+  }
+  .tree-dir { color: var(--accent2); font-weight: 700; }
+  .tree-file { color: var(--text); }
+  .tree-comment { color: var(--muted); }
+  .tree-step { color: var(--accent4); }
+  .tree-indent { padding-left: 20px; display: block; }
+
+  /* Steps */
+  .steps-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+  .step-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px;
+    transition: border-color 0.2s;
+  }
+  .step-card:hover { border-color: var(--accent); }
+  .step-num {
+    font-size: 0.7rem;
+    font-family: var(--mono);
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+  .step-title { font-size: 1rem; font-weight: 600; margin-bottom: 10px; }
+  .step-files { display: flex; flex-direction: column; gap: 4px; }
+  .step-file {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    padding: 4px 10px;
+    border-radius: 5px;
+    background: var(--surface2);
+    color: var(--muted);
+    border-left: 2px solid var(--border);
+  }
+  .step-file.page { border-left-color: var(--accent2); color: var(--accent2); }
+  .step-file.component { border-left-color: var(--accent4); color: var(--accent4); }
+  .step-file.store { border-left-color: var(--accent3); color: var(--accent3); }
+  .step-file.service { border-left-color: var(--accent5); color: var(--accent5); }
+
+  /* Data Flow */
+  .flow {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+  }
+  .flow-node {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 28px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    text-align: center;
+    width: 260px;
+  }
+  .flow-arrow {
+    color: var(--muted);
+    font-size: 0.7rem;
+    font-family: var(--mono);
+    text-align: center;
+    padding: 4px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+  }
+  .flow-arrow span { color: var(--accent); font-size: 1.1rem; }
+  .fn-view { border-color: var(--accent2); }
+  .fn-store { border-color: var(--accent3); }
+  .fn-service { border-color: var(--accent5); }
+  .fn-ls { border-color: var(--accent4); }
+
+  /* LS Schema */
+  .schema-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
+  .schema-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .schema-header {
+    padding: 10px 14px;
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    font-weight: 700;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface2);
+  }
+  .schema-key { color: var(--accent4); }
+  .schema-body { padding: 12px 14px; font-family: var(--mono); font-size: 0.7rem; line-height: 1.8; }
+  .sk { color: var(--accent2); }
+  .sv { color: var(--accent4); }
+  .ss { color: var(--muted); }
+
+  section { margin-bottom: 28px; }
+  .section-label {
+    font-size: 0.7rem;
+    font-family: var(--mono);
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 12px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .checklist { display: flex; flex-direction: column; gap: 8px; }
+  .check-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 0.82rem;
+  }
+  .check-icon { font-size: 1rem; }
+
+  .quasar-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
+  .q-item {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 0.78rem;
+  }
+  .q-item .feature { color: var(--muted); font-size: 0.7rem; margin-bottom: 4px; }
+  .q-item .component { color: var(--accent2); font-family: var(--mono); font-size: 0.72rem; font-weight: 700; }
+</style>
+</head>
+<body>
+
+<h1>🍽️ Restaurant POS — <span>Architecture</span></h1>
+<p class="subtitle">Vue 3 + Quasar + Pinia + LocalStorage · MVC Project Structure</p>
+
+<div class="tabs">
+  <div class="tab active" onclick="showTab('mvc')">MVC Layers</div>
+  <div class="tab" onclick="showTab('tree')">File Tree</div>
+  <div class="tab" onclick="showTab('steps')">5 Steps</div>
+  <div class="tab" onclick="showTab('flow')">Data Flow</div>
+  <div class="tab" onclick="showTab('schema')">LS Schema</div>
+  <div class="tab" onclick="showTab('quasar')">Quasar Components</div>
+  <div class="tab" onclick="showTab('checklist')">Checklist</div>
+</div>
+
+<!-- MVC TAB -->
+<div id="tab-mvc" class="panel active">
+  <div class="mvc-grid">
+    <div class="mvc-col model-col">
+      <div class="mvc-col-header">📦 <span>MODEL</span> <span class="badge">stores/ + services/</span></div>
+      <div class="mvc-items">
+        <div class="mvc-item"><div class="file">authStore.js</div><div class="desc">currentUser, users[], login/logout/register</div></div>
+        <div class="mvc-item"><div class="file">restaurantStore.js</div><div class="desc">restaurant{}, branches[], CRUD actions</div></div>
+        <div class="mvc-item"><div class="file">itemStore.js</div><div class="desc">items[], addItem/editItem/deleteItem</div></div>
+        <div class="mvc-item"><div class="file">orderStore.js</div><div class="desc">cart[], orders[], addToCart/submitOrder</div></div>
+        <div class="mvc-item"><div class="file">themeStore.js</div><div class="desc">isDark, toggleTheme()</div></div>
+        <div class="mvc-item"><div class="file">authService.js</div><div class="desc">getUsers() / saveUser() → LocalStorage</div></div>
+        <div class="mvc-item"><div class="file">restaurantService.js</div><div class="desc">getRestaurant() / saveRestaurant()</div></div>
+        <div class="mvc-item"><div class="file">itemService.js</div><div class="desc">getItems() / saveItems()</div></div>
+        <div class="mvc-item"><div class="file">orderService.js</div><div class="desc">getOrders() / saveOrder()</div></div>
+        <div class="mvc-item"><div class="file">storageKeys.js</div><div class="desc">USERS_KEY, ITEMS_KEY, ORDERS_KEY constants</div></div>
+      </div>
+    </div>
+    <div class="mvc-col controller-col">
+      <div class="mvc-col-header">🎮 <span>CONTROLLER</span> <span class="badge">router/</span></div>
+      <div class="mvc-items">
+        <div class="mvc-item"><div class="file">router/index.js</div><div class="desc">Route definitions + beforeEach auth guard</div></div>
+        <div class="mvc-item"><div class="file">/ → LoginPage</div><div class="desc">Redirect to /restaurant if logged in</div></div>
+        <div class="mvc-item"><div class="file">/restaurant</div><div class="desc">requiresAuth: true</div></div>
+        <div class="mvc-item"><div class="file">/items</div><div class="desc">requiresAuth: true</div></div>
+        <div class="mvc-item"><div class="file">/orders</div><div class="desc">requiresAuth: true</div></div>
+        <div class="mvc-item"><div class="file">/invoices</div><div class="desc">requiresAuth: true · redirect after order</div></div>
+        <div class="mvc-item"><div class="file">AuthLayout.vue</div><div class="desc">Blank shell — login/register pages</div></div>
+        <div class="mvc-item"><div class="file">MainLayout.vue</div><div class="desc">Sidebar + topbar shell — post-login pages</div></div>
+      </div>
+    </div>
+    <div class="mvc-col view-col">
+      <div class="mvc-col-header">🖼️ <span>VIEW</span> <span class="badge">pages/ + components/</span></div>
+      <div class="mvc-items">
+        <div class="mvc-item"><div class="file">LoginPage.vue</div><div class="desc">Login form + Register card overlay</div></div>
+        <div class="mvc-item"><div class="file">RestaurantSetupPage.vue</div><div class="desc">Restaurant info + logo + branches</div></div>
+        <div class="mvc-item"><div class="file">ItemsPage.vue</div><div class="desc">Item grid + search + add dialog</div></div>
+        <div class="mvc-item"><div class="file">OrderPage.vue</div><div class="desc">Item selector + cart + customer form</div></div>
+        <div class="mvc-item"><div class="file">InvoicePage.vue</div><div class="desc">Upcoming + Previous order sections</div></div>
+        <div class="mvc-item"><div class="file">components/auth/</div><div class="desc">LoginForm, RegisterCard</div></div>
+        <div class="mvc-item"><div class="file">components/items/</div><div class="desc">ItemCard, ItemGrid, ItemFormDialog, ItemSearchBar</div></div>
+        <div class="mvc-item"><div class="file">components/orders/</div><div class="desc">OrderItemSelector, OrderCart, OrderCustomerForm</div></div>
+        <div class="mvc-item"><div class="file">components/invoices/</div><div class="desc">InvoiceList, InvoiceCard, InvoiceModal, InvoicePrintView</div></div>
+        <div class="mvc-item"><div class="file">components/shared/</div><div class="desc">ThemeSwitcher, NavBar, SideDrawer, SearchFilter</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TREE TAB -->
+<div id="tab-tree" class="panel">
+  <div class="tree">
+<span class="tree-dir">restaurant-pos/</span>
+<span class="tree-indent"><span class="tree-dir">src/</span>
+  <span class="tree-indent"><span class="tree-dir">assets/</span>
+    <span class="tree-indent"><span class="tree-file">default-logo.png</span></span>
+  </span>
+  <span class="tree-indent"><span class="tree-dir">boot/</span>
+    <span class="tree-indent"><span class="tree-file">pinia.js</span>  <span class="tree-comment"># Register Pinia</span></span>
+  </span>
+  <span class="tree-indent"><span class="tree-dir">services/</span>  <span class="tree-comment"># LocalStorage raw access</span>
+    <span class="tree-indent"><span class="tree-file">storageKeys.js</span>  <span class="tree-comment"># Key constants</span></span>
+    <span class="tree-indent"><span class="tree-file">authService.js</span></span>
+    <span class="tree-indent"><span class="tree-file">restaurantService.js</span></span>
+    <span class="tree-indent"><span class="tree-file">itemService.js</span></span>
+    <span class="tree-indent"><span class="tree-file">orderService.js</span></span>
+  </span>
+  <span class="tree-indent"><span class="tree-dir">stores/</span>  <span class="tree-comment"># Pinia state stores</span>
+    <span class="tree-indent"><span class="tree-file">authStore.js</span></span>
+    <span class="tree-indent"><span class="tree-file">restaurantStore.js</span></span>
+    <span class="tree-indent"><span class="tree-file">itemStore.js</span></span>
+    <span class="tree-indent"><span class="tree-file">orderStore.js</span></span>
+    <span class="tree-indent"><span class="tree-file">themeStore.js</span></span>
+  </span>
+  <span class="tree-indent"><span class="tree-dir">composables/</span>
+    <span class="tree-indent"><span class="tree-file">useLocalStorage.js</span>  <span class="tree-comment"># Generic LS helper</span></span>
+    <span class="tree-indent"><span class="tree-file">useInvoice.js</span>  <span class="tree-comment"># Invoice generation</span></span>
+    <span class="tree-indent"><span class="tree-file">useSearch.js</span>  <span class="tree-comment"># Search & filter logic</span></span>
+  </span>
+  <span class="tree-indent"><span class="tree-dir">router/</span>
+    <span class="tree-indent"><span class="tree-file">index.js</span>  <span class="tree-comment"># Routes + auth guard</span></span>
+  </span>
+  <span class="tree-indent"><span class="tree-dir">layouts/</span>
+    <span class="tree-indent"><span class="tree-file">AuthLayout.vue</span>  <span class="tree-comment"># Login/register shell</span></span>
+    <span class="tree-indent"><span class="tree-file">MainLayout.vue</span>  <span class="tree-comment"># Sidebar + topbar shell</span></span>
+  </span>
+  <span class="tree-indent"><span class="tree-dir">pages/</span>
+    <span class="tree-indent"><span class="tree-dir">auth/</span>
+      <span class="tree-indent"><span class="tree-step">LoginPage.vue</span>  <span class="tree-comment"># STEP 1</span></span>
+    </span>
+    <span class="tree-indent"><span class="tree-dir">restaurant/</span>
+      <span class="tree-indent"><span class="tree-step">RestaurantSetupPage.vue</span>  <span class="tree-comment"># STEP 2</span></span>
+    </span>
+    <span class="tree-indent"><span class="tree-dir">items/</span>
+      <span class="tree-indent"><span class="tree-step">ItemsPage.vue</span>  <span class="tree-comment"># STEP 3</span></span>
+    </span>
+    <span class="tree-indent"><span class="tree-dir">orders/</span>
+      <span class="tree-indent"><span class="tree-step">OrderPage.vue</span>  <span class="tree-comment"># STEP 4</span></span>
+    </span>
+    <span class="tree-indent"><span class="tree-dir">invoices/</span>
+      <span class="tree-indent"><span class="tree-step">InvoicePage.vue</span>  <span class="tree-comment"># STEP 5</span></span>
+    </span>
+  </span>
+  <span class="tree-indent"><span class="tree-dir">components/</span>
+    <span class="tree-indent"><span class="tree-dir">auth/</span>
+      <span class="tree-indent"><span class="tree-file">LoginForm.vue</span></span>
+      <span class="tree-indent"><span class="tree-file">RegisterCard.vue</span></span>
+    </span>
+    <span class="tree-indent"><span class="tree-dir">restaurant/</span>
+      <span class="tree-indent"><span class="tree-file">RestaurantForm.vue</span></span>
+      <span class="tree-indent"><span class="tree-file">RestaurantInfoCard.vue</span></span>
+      <span class="tree-indent"><span class="tree-file">LogoUploader.vue</span></span>
+    </span>
+    <span class="tree-indent"><span class="tree-dir">items/</span>
+      <span class="tree-indent"><span class="tree-file">ItemCard.vue</span></span>
+      <span class="tree-indent"><span class="tree-file">ItemGrid.vue</span></span>
+      <span class="tree-indent"><span class="tree-file">ItemFormDialog.vue</span></span>
+      <span class="tree-indent"><span class="tree-file">ItemSearchBar.vue</span></span>
+    </span>
+    <span class="tree-indent"><span class="tree-dir">orders/</span>
+      <span class="tree-indent"><span class="tree-file">OrderItemSelector.vue</span></span>
+      <span class="tree-indent"><span class="tree-file">OrderCart.vue</span></span>
+      <span class="tree-indent"><span class="tree-file">OrderCustomerForm.vue</span></span>
+      <span class="tree-indent"><span class="tree-file">OrderSummary.vue</span></span>
+    </span>
+    <span class="tree-indent"><span class="tree-dir">invoices/</span>
+      <span class="tree-indent"><span class="tree-file">InvoiceList.vue</span></span>
+      <span class="tree-indent"><span class="tree-file">InvoiceCard.vue</span></span>
+      <span class="tree-indent"><span class="tree-file">InvoiceModal.vue</span></span>
+      <span class="tree-indent"><span class="tree-file">InvoicePrintView.vue</span></span>
+    </span>
+    <span class="tree-indent"><span class="tree-dir">shared/</span>
+      <span class="tree-indent"><span class="tree-file">ThemeSwitcher.vue</span></span>
+      <span class="tree-indent"><span class="tree-file">NavBar.vue</span></span>
+      <span class="tree-indent"><span class="tree-file">SideDrawer.vue</span></span>
+      <span class="tree-indent"><span class="tree-file">SearchFilter.vue</span></span>
+    </span>
+  </span>
+  <span class="tree-indent"><span class="tree-file">App.vue</span></span>
+</span>
+<span class="tree-file">quasar.config.js</span>
+<span class="tree-file">package.json</span>
+  </div>
+</div>
+
+<!-- STEPS TAB -->
+<div id="tab-steps" class="panel">
+  <div class="steps-grid">
+    <div class="step-card">
+      <div class="step-num">STEP 1 · 10 marks</div>
+      <div class="step-title">🔐 Authentication</div>
+      <div class="step-files">
+        <div class="step-file page">pages/auth/LoginPage.vue</div>
+        <div class="step-file component">components/auth/LoginForm.vue</div>
+        <div class="step-file component">components/auth/RegisterCard.vue</div>
+        <div class="step-file store">stores/authStore.js</div>
+        <div class="step-file service">services/authService.js</div>
+      </div>
+    </div>
+    <div class="step-card">
+      <div class="step-num">STEP 2 · 10 marks</div>
+      <div class="step-title">🏪 Restaurant Setup</div>
+      <div class="step-files">
+        <div class="step-file page">pages/restaurant/RestaurantSetupPage.vue</div>
+        <div class="step-file component">components/restaurant/RestaurantForm.vue</div>
+        <div class="step-file component">components/restaurant/RestaurantInfoCard.vue</div>
+        <div class="step-file component">components/restaurant/LogoUploader.vue</div>
+        <div class="step-file store">stores/restaurantStore.js</div>
+        <div class="step-file service">services/restaurantService.js</div>
+      </div>
+    </div>
+    <div class="step-card">
+      <div class="step-num">STEP 3 · 10 marks</div>
+      <div class="step-title">🍔 All Items</div>
+      <div class="step-files">
+        <div class="step-file page">pages/items/ItemsPage.vue</div>
+        <div class="step-file component">components/items/ItemCard.vue</div>
+        <div class="step-file component">components/items/ItemGrid.vue</div>
+        <div class="step-file component">components/items/ItemFormDialog.vue</div>
+        <div class="step-file component">components/items/ItemSearchBar.vue</div>
+        <div class="step-file store">stores/itemStore.js</div>
+        <div class="step-file service">services/itemService.js</div>
+      </div>
+    </div>
+    <div class="step-card">
+      <div class="step-num">STEP 4 · 10 marks</div>
+      <div class="step-title">🛒 Orders</div>
+      <div class="step-files">
+        <div class="step-file page">pages/orders/OrderPage.vue</div>
+        <div class="step-file component">components/orders/OrderItemSelector.vue</div>
+        <div class="step-file component">components/orders/OrderCart.vue</div>
+        <div class="step-file component">components/orders/OrderCustomerForm.vue</div>
+        <div class="step-file component">components/orders/OrderSummary.vue</div>
+        <div class="step-file store">stores/orderStore.js</div>
+        <div class="step-file service">services/orderService.js</div>
+      </div>
+    </div>
+    <div class="step-card">
+      <div class="step-num">STEP 5 · 10 marks</div>
+      <div class="step-title">🧾 Invoices</div>
+      <div class="step-files">
+        <div class="step-file page">pages/invoices/InvoicePage.vue</div>
+        <div class="step-file component">components/invoices/InvoiceList.vue</div>
+        <div class="step-file component">components/invoices/InvoiceCard.vue</div>
+        <div class="step-file component">components/invoices/InvoiceModal.vue</div>
+        <div class="step-file component">components/invoices/InvoicePrintView.vue</div>
+        <div class="step-file store">stores/orderStore.js (shared)</div>
+        <div class="step-file service">composables/useInvoice.js</div>
+      </div>
+    </div>
+    <div class="step-card">
+      <div class="step-num">SHARED · All Steps</div>
+      <div class="step-title">⚙️ Shared / Global</div>
+      <div class="step-files">
+        <div class="step-file component">components/shared/ThemeSwitcher.vue</div>
+        <div class="step-file component">components/shared/NavBar.vue</div>
+        <div class="step-file component">components/shared/SideDrawer.vue</div>
+        <div class="step-file component">components/shared/SearchFilter.vue</div>
+        <div class="step-file store">stores/themeStore.js</div>
+        <div class="step-file page">layouts/MainLayout.vue</div>
+        <div class="step-file page">layouts/AuthLayout.vue</div>
+        <div class="step-file service">router/index.js</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- FLOW TAB -->
+<div id="tab-flow" class="panel">
+  <div class="flow">
+    <div class="flow-node fn-view">👤 User Action<br><small style="color:var(--muted);font-weight:400">clicks button / submits form</small></div>
+    <div class="flow-arrow"><span>↓</span> triggers event handler</div>
+    <div class="flow-node fn-view">🖼️ Vue Component (VIEW)<br><small style="color:var(--muted);font-weight:400">pages/ or components/</small></div>
+    <div class="flow-arrow"><span>↓</span> calls store action</div>
+    <div class="flow-node fn-store">📦 Pinia Store (MODEL)<br><small style="color:var(--muted);font-weight:400">stores/authStore.js etc.</small></div>
+    <div class="flow-arrow"><span>↓</span> calls service method</div>
+    <div class="flow-node fn-service">🔧 Service Layer<br><small style="color:var(--muted);font-weight:400">services/authService.js etc.</small></div>
+    <div class="flow-arrow"><span>↓</span> reads / writes</div>
+    <div class="flow-node fn-ls">💾 LocalStorage<br><small style="color:var(--muted);font-weight:400">pos_users, pos_items, pos_orders...</small></div>
+    <div class="flow-arrow"><span>↑</span> data returned</div>
+    <div class="flow-node fn-store">📦 Pinia reactive state updated<br><small style="color:var(--muted);font-weight:400">ref() / reactive() triggers watchers</small></div>
+    <div class="flow-arrow"><span>↑</span> Vue reactivity system</div>
+    <div class="flow-node fn-view">🖼️ Component re-renders<br><small style="color:var(--muted);font-weight:400">UI reflects new state automatically</small></div>
+  </div>
+</div>
+
+<!-- SCHEMA TAB -->
+<div id="tab-schema" class="panel">
+  <div class="schema-grid">
+    <div class="schema-card">
+      <div class="schema-header"><span class="schema-key">"pos_users"</span> <span style="color:var(--muted)">Array</span></div>
+      <div class="schema-body">
+        [<br>
+        &nbsp;&nbsp;{<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;<span class="sk">"id"</span>: <span class="sv">"uuid"</span>,<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;<span class="sk">"name"</span>: <span class="sv">"string"</span>,<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;<span class="sk">"email"</span>: <span class="sv">"string"</span>,<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;<span class="sk">"password"</span>: <span class="sv">"string"</span>,<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;<span class="sk">"phone"</span>: <span class="sv">"string"</span><br>
+        &nbsp;&nbsp;}<br>
+        ]
+      </div>
+    </div>
+    <div class="schema-card">
+      <div class="schema-header"><span class="schema-key">"pos_current_user"</span> <span style="color:var(--muted)">Object</span></div>
+      <div class="schema-body">
+        {<br>
+        &nbsp;&nbsp;<span class="sk">"id"</span>: <span class="sv">"uuid"</span>,<br>
+        &nbsp;&nbsp;<span class="sk">"name"</span>: <span class="sv">"string"</span>,<br>
+        &nbsp;&nbsp;<span class="sk">"email"</span>: <span class="sv">"string"</span><br>
+        }<br>
+        <br>
+        <span class="ss">// Set on login, removed on logout</span>
+      </div>
+    </div>
+    <div class="schema-card">
+      <div class="schema-header"><span class="schema-key">"pos_restaurant"</span> <span style="color:var(--muted)">Object</span></div>
+      <div class="schema-body">
+        {<br>
+        &nbsp;&nbsp;<span class="sk">"name"</span>: <span class="sv">"string"</span>,<br>
+        &nbsp;&nbsp;<span class="sk">"logo"</span>: <span class="sv">"base64string"</span>,<br>
+        &nbsp;&nbsp;<span class="sk">"address"</span>: <span class="sv">"string"</span>,<br>
+        &nbsp;&nbsp;<span class="sk">"phone"</span>: <span class="sv">"string"</span>,<br>
+        &nbsp;&nbsp;<span class="sk">"branches"</span>: <span class="sv">["string"]</span><br>
+        }
+      </div>
+    </div>
+    <div class="schema-card">
+      <div class="schema-header"><span class="schema-key">"pos_items"</span> <span style="color:var(--muted)">Array</span></div>
+      <div class="schema-body">
+        [<br>
+        &nbsp;&nbsp;{<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;<span class="sk">"id"</span>: <span class="sv">"uuid"</span>,<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;<span class="sk">"name"</span>: <span class="sv">"string"</span>,<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;<span class="sk">"category"</span>: <span class="sv">"string"</span>,<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;<span class="sk">"price"</span>: <span class="sv">number</span><br>
+        &nbsp;&nbsp;}<br>
+        ]
+      </div>
+    </div>
+    <div class="schema-card" style="grid-column: span 2;">
+      <div class="schema-header"><span class="schema-key">"pos_orders"</span> <span style="color:var(--muted)">Array</span></div>
+      <div class="schema-body">
+        [<br>
+        &nbsp;&nbsp;{<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;<span class="sk">"id"</span>: <span class="sv">"uuid"</span>,<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;<span class="sk">"createdAt"</span>: <span class="sv">"ISO timestamp"</span>,<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;<span class="sk">"status"</span>: <span class="sv">"upcoming | previous"</span>,<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;<span class="sk">"customer"</span>: { <span class="sk">"name"</span>, <span class="sk">"phone"</span>, <span class="sk">"table"</span>, <span class="sk">"seat"</span> },<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;<span class="sk">"items"</span>: [{ <span class="sk">"id"</span>, <span class="sk">"name"</span>, <span class="sk">"price"</span>, <span class="sk">"qty"</span> }],<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;<span class="sk">"total"</span>: <span class="sv">number</span><br>
+        &nbsp;&nbsp;}<br>
+        ]<br>
+        <br>
+        <span class="ss">// Sorted descending by createdAt on InvoicePage</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- QUASAR TAB -->
+<div id="tab-quasar" class="panel">
+  <div class="quasar-grid">
+    <div class="q-item"><div class="feature">Login / Register</div><div class="component">QCard, QInput, QBtn, QForm</div></div>
+    <div class="q-item"><div class="feature">Item Grid Cards</div><div class="component">QCard, QCardSection, QBadge</div></div>
+    <div class="q-item"><div class="feature">Add/Edit Dialog</div><div class="component">QDialog, QForm, QSelect, QInput</div></div>
+    <div class="q-item"><div class="feature">Order Cart</div><div class="component">QList, QItem, QItemSection, QItemLabel</div></div>
+    <div class="q-item"><div class="feature">Invoice Table</div><div class="component">QTable or QCard loop</div></div>
+    <div class="q-item"><div class="feature">Theme Switcher</div><div class="component">QToggle + Dark plugin</div></div>
+    <div class="q-item"><div class="feature">Sidebar Drawer</div><div class="component">QDrawer, QList, QItem</div></div>
+    <div class="q-item"><div class="feature">Top Navigation</div><div class="component">QHeader, QToolbar, QToolbarTitle</div></div>
+    <div class="q-item"><div class="feature">Notifications</div><div class="component">Notify plugin (Quasar.notify)</div></div>
+    <div class="q-item"><div class="feature">Delete Confirm</div><div class="component">Dialog plugin (Quasar.dialog)</div></div>
+    <div class="q-item"><div class="feature">Logo Upload</div><div class="component">QFile or QUploader</div></div>
+    <div class="q-item"><div class="feature">Loading States</div><div class="component">QSpinner, Loading plugin</div></div>
+    <div class="q-item"><div class="feature">Search Bar</div><div class="component">QInput with search icon slot</div></div>
+    <div class="q-item"><div class="feature">Category Filter</div><div class="component">QSelect, QChip, QBtnToggle</div></div>
+    <div class="q-item"><div class="feature">Page Layout</div><div class="component">QPage, QPageContainer</div></div>
+    <div class="q-item"><div class="feature">Responsive Grid</div><div class="component">QGrid, col-12 col-md-6 col-lg-4</div></div>
+  </div>
+</div>
+
+<!-- CHECKLIST TAB -->
+<div id="tab-checklist" class="panel">
+  <div class="checklist">
+    <div class="check-item"><span class="check-icon">🔐</span><span><strong>Step 1</strong> — Login + Register Card (same view, no route change) → authStore + authService</span></div>
+    <div class="check-item"><span class="check-icon">🏪</span><span><strong>Step 2</strong> — Restaurant info CRUD + Logo upload + Branch list → restaurantStore</span></div>
+    <div class="check-item"><span class="check-icon">🍔</span><span><strong>Step 3</strong> — Item cards grid + Add/Edit/Delete dialog + search → itemStore</span></div>
+    <div class="check-item"><span class="check-icon">🛒</span><span><strong>Step 4</strong> — Item selector + cart + customer form → submit → redirect to /invoices</span></div>
+    <div class="check-item"><span class="check-icon">🧾</span><span><strong>Step 5</strong> — Upcoming (latest) / Previous (older) sections + View/Print/Download</span></div>
+    <div class="check-item"><span class="check-icon">🌓</span><span><strong>Bonus</strong> — Theme switcher Light/Dark → themeStore + Quasar Dark plugin</span></div>
+    <div class="check-item"><span class="check-icon">🔍</span><span><strong>Bonus</strong> — Search & filter on items page + orders/invoices page</span></div>
+    <div class="check-item"><span class="check-icon">📱</span><span><strong>Bonus</strong> — Responsive design using Quasar grid classes (col-12 col-md-6 col-lg-4)</span></div>
+    <div class="check-item"><span class="check-icon">🛡️</span><span><strong>Auth Guard</strong> — All routes except "/" require login via router.beforeEach</span></div>
+    <div class="check-item"><span class="check-icon">💾</span><span><strong>Persistence</strong> — All data in LocalStorage via service layer + Pinia hydration on mount</span></div>
+  </div>
+</div>
+
+<script>
+function showTab(name) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  event.target.classList.add('active');
+}
+</script>
+</body>
+</html>
