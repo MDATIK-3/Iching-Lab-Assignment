@@ -27,7 +27,7 @@
             </template>
           </q-input>
 
-          <q-input v-model="form.phone" label="Phone" mask="(###) ###-####" lazy-rules>
+          <q-input v-model="form.phone" label="Phone" lazy-rules>
             <template v-slot:prepend>
               <q-icon name="phone" />
             </template>

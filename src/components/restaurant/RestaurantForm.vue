@@ -7,7 +7,7 @@
 
       <q-input v-model="form.address" label="Address" type="textarea" />
 
-      <q-input v-model="form.phone" label="Phone *" mask="(###) ###-####" :rules="[val => !!val || 'Required']" />
+      <q-input v-model="form.phone" label="Phone *" :rules="[val => !!val || 'Required']" />
 
       <q-file v-model="logoFile" label="Logo" accept="image/*" @update:model-value="handleLogo">
         <template v-slot:prepend>
