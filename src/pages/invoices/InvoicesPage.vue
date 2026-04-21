@@ -212,8 +212,78 @@ const downloadPdf = (invoice) => {
   doc.save(`${invoice.status === 'open' ? 'draft_' : 'invoice_'}${filenameSafeId}.pdf`)
 }
 
-const printInvoice = (invoice) => {
-  window.print()
+const printInvoice = async (invoice) => {
+  const { jsPDF } = await import('jspdf')
+  const doc = new jsPDF({ unit: 'pt', format: 'a4' })
+
+  const pageWidth = doc.internal.pageSize.getWidth()
+  const margin = 40
+  let y = 52
+
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(18)
+  doc.text(invoice.status === 'open' ? 'Order Draft' : 'Invoice', margin, y)
+
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(11)
+  y += 22
+  doc.text(`Order #: ${invoice.id}`, margin, y)
+  y += 16
+  doc.text(`Customer: ${invoice.customerName || 'Walk-in'}`, margin, y)
+  y += 16
+  if (invoice.phoneNumber) {
+    doc.text(`Phone: ${invoice.phoneNumber}`, margin, y)
+    y += 16
+  }
+  if (invoice.tableNumber || invoice.seatNumber) {
+    doc.text(`Table: ${invoice.tableNumber || ''} ${invoice.seatNumber ? 'Seat ' + invoice.seatNumber : ''}`.trim(), margin, y)
+    y += 16
+  }
+  doc.text(`${invoice.status === 'open' ? 'Created' : 'Paid'} at: ${formatDate(invoice)}`, margin, y)
+
+  y += 22
+  doc.setDrawColor(200)
+  doc.line(margin, y, pageWidth - margin, y)
+  y += 18
+
+  doc.setFont('helvetica', 'bold')
+  doc.text('Item', margin, y)
+  doc.text('Qty', pageWidth - margin - 120, y, { align: 'right' })
+  doc.text('Amount', pageWidth - margin, y, { align: 'right' })
+
+  y += 10
+  doc.setFont('helvetica', 'normal')
+  doc.setDrawColor(230)
+  doc.line(margin, y, pageWidth - margin, y)
+  y += 18
+
+  const items = Array.isArray(invoice.items) ? invoice.items : []
+  items.forEach((it) => {
+    const lineAmount = (Number(it.price) || 0) * (Number(it.qty) || 0)
+    const leftText = `${it.name || ''} (${moneyPdf(it.price)})`
+
+    doc.text(leftText, margin, y, { maxWidth: pageWidth - margin * 2 - 160 })
+    doc.text(String(it.qty ?? ''), pageWidth - margin - 120, y, { align: 'right' })
+    doc.text(moneyPdf(lineAmount), pageWidth - margin, y, { align: 'right' })
+
+    y += 18
+    if (y > doc.internal.pageSize.getHeight() - 90) {
+      doc.addPage()
+      y = 52
+    }
+  })
+
+  y += 10
+  doc.setDrawColor(200)
+  doc.line(margin, y, pageWidth - margin, y)
+  y += 20
+
+  doc.setFont('helvetica', 'bold')
+  doc.text('Total', pageWidth - margin - 120, y, { align: 'right' })
+  doc.text(moneyPdf(invoice.total), pageWidth - margin, y, { align: 'right' })
+
+  doc.autoPrint()
+  window.open(doc.output('bloburl'), '_blank')
 }
 
 const viewInvoice = (invoice) => {
