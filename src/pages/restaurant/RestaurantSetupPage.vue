@@ -5,8 +5,8 @@
         <RestaurantForm @save="handleSave" />
       </div>
       <div class="col-12 col-md-4">
-        <RestaurantInfoCard :restaurant="restaurant" />
-        <q-card v-if="restaurant" flat class="q-mt-md q-pa-md">
+        <RestaurantInfoCard :restaurant="restaurantStore.restaurant" />
+        <q-card v-if="restaurantStore.restaurant" flat class="q-mt-md q-pa-md">
           <q-btn unelevated icon="delete" label="Delete Restaurant" color="negative" @click="deleteRestaurant"
             class="full-width" />
         </q-card>
@@ -16,7 +16,6 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useRestaurantStore } from 'src/stores/restaurantStore'
 import RestaurantForm from 'src/components/restaurant/RestaurantForm.vue'
@@ -25,7 +24,6 @@ import { Notify, Dialog } from 'quasar'
 
 const router = useRouter()
 const restaurantStore = useRestaurantStore()
-const restaurant = ref(restaurantStore.restaurant)
 
 const handleSave = (data) => {
   restaurantStore.saveRestaurant(data)

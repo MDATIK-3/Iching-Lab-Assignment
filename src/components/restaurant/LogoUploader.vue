@@ -1,13 +1,28 @@
 <template>
-  <q-card flat>
+  <q-card flat bordered>
     <q-card-section>
       <div class="text-weight-bold q-mb-sm">Logo Upload</div>
-      <q-file v-model="file" label="Choose logo image" accept="image/*" @update:model-value="uploadLogo">
+
+      <q-file
+        v-model="file"
+        label="Choose logo image"
+        accept="image/*"
+        outlined
+        clearable
+        @update:model-value="handleLogoChange"
+      >
         <template v-slot:prepend>
           <q-icon name="cloud_upload" />
         </template>
       </q-file>
-      <q-img v-if="logoPreview" :src="logoPreview" class="q-mt-md rounded" style="max-height: 100px" />
+
+      <q-img
+        v-if="logoPreview"
+        :src="logoPreview"
+        class="q-mt-md rounded-borders"
+        style="max-height: 100px; max-width: 200px"
+        fit="contain"
+      />
     </q-card-section>
   </q-card>
 </template>
@@ -17,16 +32,19 @@ import { ref } from 'vue'
 
 const emit = defineEmits(['logo-upload'])
 const file = ref(null)
-const logoPreview = ref('')
+const logoPreview = ref(null)
 
-const uploadLogo = (file) => {
-  if (file) {
+const handleLogoChange = (selectedFile) => {
+  if (selectedFile) {
     const reader = new FileReader()
-    reader.onload = e => {
+    reader.onload = (e) => {
       logoPreview.value = e.target.result
       emit('logo-upload', logoPreview.value)
     }
-    reader.readAsDataURL(file)
+    reader.readAsDataURL(selectedFile)
+  } else {
+    logoPreview.value = null
+    emit('logo-upload', null)
   }
 }
 </script>
